@@ -5,11 +5,18 @@ import json
 import pandas as pd
 import io
 
-# PENTING: Masukkan API Key Anda di bawah ini
-client = genai.Client(api_key="AQ.Ab8RN6Lg4Fod0EyrERmd70Jx-GwZbFceQIVzuTIeM7h0S6SytA")
-
 # Mengatur judul dan ikon halaman web
 st.set_page_config(page_title="Pemindai Struk Keuangan", page_icon="🧾")
+
+# --- KEAMANAN API KEY UNTUK VERSI ONLINE ---
+# Kita mengambil API Key dari pengaturan rahasia (Secrets) Streamlit Cloud
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+    client = genai.Client(api_key=api_key)
+except KeyError:
+    st.error("Kunci API belum diatur. Silakan klik 'Advanced settings' -> 'Secrets' saat Deploy dan masukkan GEMINI_API_KEY Anda.")
+    st.stop()
+# -------------------------------------------
 
 st.title("🧾 Aplikasi Pencatat Pengeluaran")
 st.write("Foto struk belanja Anda, biarkan AI yang mencatatnya ke Excel!")
