@@ -1,90 +1,66 @@
 import streamlit as st
+import os
 from google import genai
 from PIL import Image
 import json
 import pandas as pd
 import io
 
-# Mengatur judul dan ikon halaman web
-st.set_page_config(page_title="Pemindai Struk Keuangan", page_icon="🧾")
+# 1. Konfigurasi Halaman
+st.set_page_config(page_title="Pemindai Struk", page_icon="🧾")
 
-# --- KEAMANAN API KEY UNTUK VERSI ONLINE ---
-# Kita mengambil API Key dari pengaturan rahasia (Secrets) Streamlit Cloud
+# 2. Setup Client AI
 try:
+    # Mengambil API Key dari Secrets Streamlit Cloud
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-except KeyError:
-    st.error("Kunci API belum diatur. Silakan klik 'Advanced settings' -> 'Secrets' saat Deploy dan masukkan GEMINI_API_KEY Anda.")
+except Exception as e:
+    st.error("API Key tidak ditemukan di Secrets. Pastikan sudah diatur di Streamlit Cloud.")
     st.stop()
-# -------------------------------------------
 
 st.title("🧾 Aplikasi Pencatat Pengeluaran")
-st.write("Foto struk belanja Anda, biarkan AI yang mencatatnya ke Excel!")
 
-# Membuat tombol kamera langsung di layar
+# 3. Kamera
 foto_kamera = st.camera_input("Ambil Foto Struk")
 
-# Logika ketika pengguna selesai mengambil foto
-if foto_kamera is not None:
-    st.success("Foto berhasil diambil! AI sedang memproses data... Mohon tunggu sebentar.")
-    
+if foto_kamera:
+    st.info("Memproses gambar...")
     try:
-        # 1. Membaca foto dari memori
         gambar = Image.open(foto_kamera)
         
-        # 2. Mengirim instruksi ke Gemini
+        # Instruksi ke AI
         instruksi = """
-        Tolong analisa foto struk belanja ini. 
-        Ekstrak informasi berikut dan tampilkan murni dalam format JSON yang rapi tanpa tambahan teks apapun:
+        Analisa struk ini dan berikan output dalam format JSON saja:
         {
-          "nama_toko": "",
-          "tanggal": "",
-          "daftar_barang": [{"nama": "", "harga": 0}],
+          "nama_toko": "nama",
+          "tanggal": "tanggal",
+          "daftar_barang": [{"nama": "item", "harga": 0}],
           "total_pembelanjaan": 0
         }
         """
+        
+        # Panggil Gemini
         respons = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash', 
             contents=[instruksi, gambar]
         )
         
-        # 3. Membersihkan teks menjadi format JSON
-        teks_bersih = respons.text.strip()
-        if teks_bersih.startswith("```json"): 
-            teks_bersih = teks_bersih[7:]
-        if teks_bersih.endswith("```"): 
-            teks_bersih = teks_bersih[:-3]
+        # Bersihkan teks JSON
+        teks = respons.text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(teks)
         
-        data_struk = json.loads(teks_bersih)
+        st.write(f"Toko: {data['nama_toko']}")
         
-        # 4. Menampilkan hasil teks ke layar aplikasi
-        st.write("### Hasil Analisis AI:")
-        st.write(f"**Toko:** {data_struk['nama_toko']} | **Tanggal:** {data_struk['tanggal']}")
+        # Tampilkan Tabel
+        tabel = pd.DataFrame(data['daftar_barang'])
+        st.dataframe(tabel)
         
-        baris_excel = []
-        for barang in data_struk["daftar_barang"]:
-            baris_excel.append({
-                "Tanggal": data_struk["tanggal"],
-                "Toko": data_struk["nama_toko"],
-                "Nama Barang": barang["nama"],
-                "Harga Satuan": barang["harga"]
-            })
-        
-        # 5. Mengubah data menjadi tabel visual
-        tabel = pd.DataFrame(baris_excel)
-        st.dataframe(tabel, use_container_width=True)
-        
-        # 6. Menyiapkan tombol unduh file Excel
+        # Tombol Download
         buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        with pd.ExcelWriter(buffer) as writer:
             tabel.to_excel(writer, index=False)
         
-        st.download_button(
-            label="📥 Download File Excel",
-            data=buffer.getvalue(),
-            file_name="Laporan_Pengeluaran_Otomatis.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        st.download_button("Download Excel", buffer.getvalue(), "struk.xlsx")
         
     except Exception as e:
-        st.error(f"Waduh, terjadi sedikit kesalahan saat membaca gambar: {e}")
+        st.error(f"Error: {e}")
