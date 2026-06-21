@@ -67,4 +67,9 @@ if foto_kamera:
                 st.write(teks_ai)
                 
     except Exception as e:
-        st.error(f"Terjadi kesalahan: {e}")
+        pesan_error = str(e)
+        # Penanganan khusus jika API Key Google tidak valid (Error 400)
+        if "API_KEY_INVALID" in pesan_error or "400" in pesan_error:
+            st.error("🔑 **Kunci API Tidak Valid (400)**: API Key Anda ditolak oleh sistem Google. Kemungkinan kunci tersebut telah dihapus, kedaluwarsa, atau ada salah ketik/spasi saat menyalinnya di pengaturan 'Secrets' Streamlit. Silakan buat API Key baru di Google AI Studio dan perbarui di Streamlit Anda.")
+        else:
+            st.error(f"Terjadi kesalahan: {e}")
